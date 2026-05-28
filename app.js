@@ -20,7 +20,8 @@ function categorizeExpense(subject = "") {
   if (s.includes("rent") || s.includes("landlord"))
     return { name: "Rent", icon: "🏠" };
 
-  if (s.includes("water")) return { name: "Water", icon: "💧" };
+  if (s.includes("water"))
+    return { name: "Water", icon: "💧" };
 
   if (s.includes("internet") || s.includes("wifi") || s.includes("telstra") || s.includes("optus"))
     return { name: "Internet", icon: "📶" };
@@ -28,7 +29,8 @@ function categorizeExpense(subject = "") {
   if (s.includes("phone") || s.includes("mobile"))
     return { name: "Mobile", icon: "📱" };
 
-  if (s.includes("gas")) return { name: "Gas", icon: "🔥" };
+  if (s.includes("gas"))
+    return { name: "Gas", icon: "🔥" };
 
   return { name: "Other", icon: "📦" };
 }
@@ -41,7 +43,8 @@ function parseDate(str) {
   if (str.includes("/")) {
     const p = str.split("/");
     if (p.length === 3) {
-      return new Date(p[2], p[1] - 1, p[0]);
+      const d = new Date(p[2], p[1] - 1, p[0]);
+      return isNaN(d.getTime()) ? null : d;
     }
   }
 
@@ -60,7 +63,7 @@ async function loadData() {
   const data = await res.json();
 
   if (!data.values) {
-    console.log("No data", data);
+    console.log("No data returned", data);
     return;
   }
 
@@ -79,20 +82,24 @@ async function loadData() {
   data.values.forEach(row => {
 
     const subject = row[3] || "";
-    const amount = parseFloat(row[4]) || 0;
+    const amount = parseFloat(row[4]);
+
+    // skip invalid rows completely
+    if (isNaN(amount) || amount <= 0) return;
+
     const date = parseDate(row[5]);
 
     const category = categorizeExpense(subject);
 
     yearlyTotal += amount;
-    count++;
+    count += 1;
 
     /* CURRENT MONTH */
     if (date && date.getMonth() === currentMonth && date.getFullYear() === currentYear) {
       currentMonthTotal += amount;
     }
 
-    /* MONTHLY CHART */
+    /* MONTHLY DATA */
     if (date) {
       const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
       monthly[key] = (monthly[key] || 0) + amount;
@@ -111,11 +118,13 @@ async function loadData() {
     window.categoryData[category.name].count += 1;
   });
 
-  /* CHART */
-  const labels = Object.keys(monthly).sort();
-  const values = labels.map(k => monthly[k]);
+  /* SAFE CHART DATA */
+  let labels = Object.keys(monthly).sort();
+  if (labels.length === 0) labels = ["No Data"];
 
-  /* KPI SAFE VALUES */
+  const values = labels.map(k => monthly[k] || 0);
+
+  /* KPI UPDATES */
   animateValue("total", yearlyTotal, true);
   animateValue("monthTotal", currentMonthTotal, true);
   animateValue("count", count, false);
@@ -130,6 +139,7 @@ async function loadData() {
 function renderChart(labels, values) {
 
   const ctx = document.getElementById("chart");
+  if (!ctx) return;
 
   if (chartInstance) chartInstance.destroy();
 
@@ -181,7 +191,7 @@ function renderCategories() {
   el.innerHTML = html;
 }
 
-/* ================= CATEGORY AVERAGES FIXED ================= */
+/* ================= CATEGORY AVERAGES ================= */
 function renderCategoryAverages() {
 
   const el = document.getElementById("categoryAverages");
@@ -207,7 +217,7 @@ function renderCategoryAverages() {
   el.innerHTML = html;
 }
 
-/* ================= ANIMATION ================= */
+/* ================= KPI ANIMATION ================= */
 function animateValue(id, value, money = true) {
 
   const el = document.getElementById(id);
