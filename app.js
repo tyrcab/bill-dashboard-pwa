@@ -5,6 +5,7 @@ const RANGE = "Bills!A2:H";
 let chartInstance = null;
 let chartType = "bar";
 window.categoryTotals = {};
+window.categoryCounts = {};
 
 window.addEventListener("DOMContentLoaded", loadData);
 
@@ -121,8 +122,12 @@ async function loadData() {
     }
 
     /* CATEGORY TOTALS */
-    window.categoryTotals[category.name] =
-      (window.categoryTotals[category.name] || 0) + amount;
+window.categoryTotals[category.name] =
+  (window.categoryTotals[category.name] || 0) + amount;
+
+/* CATEGORY COUNTS */
+window.categoryCounts[category.name] =
+  (window.categoryCounts[category.name] || 0) + 1;
 
     /* CATEGORY AVERAGES */
     if (!window.categoryData[category.name]) {
@@ -153,10 +158,36 @@ async function loadData() {
   renderCategoryAverages();
 }
 
+function renderCategories() {
+
+  const el = document.getElementById("categories");
+  if (!el) return;
+
+  let html = "";
+
+  Object.entries(window.categoryTotals)
+    .sort((a, b) => b[1] - a[1])
+    .forEach(([name, value]) => {
+
+      html += `
+        <div style="
+          display:flex;
+          justify-content:space-between;
+          padding:8px 0;
+          border-bottom:1px solid #1f2937;
+        ">
+          <span>${name}</span>
+          <span>$${value.toFixed(2)}</span>
+        </div>
+      `;
+    });
+
+  el.innerHTML = html;
+}
+
 function renderCategoryAverages() {
 
   const el = document.getElementById("categoryAverages");
-
   if (!el) return;
 
   let html = "";
@@ -165,8 +196,8 @@ function renderCategoryAverages() {
     .sort((a, b) => b[1] - a[1])
     .forEach(([name, total]) => {
 
-      const avg =
-        total / window.categoryCounts[name];
+      const count = window.categoryCounts[name] || 1;
+      const avg = total / count;
 
       html += `
         <div style="
