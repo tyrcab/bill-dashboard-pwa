@@ -39,20 +39,22 @@ function categorizeExpense(subject = "") {
 function parseDate(str) {
   if (!str) return null;
 
-  // dd/mm/yyyy
-  if (str.includes("/")) {
-    const p = str.split("/");
-    if (p.length === 3) {
-      const d = new Date(p[2], p[1] - 1, p[0]);
-      return isNaN(d.getTime()) ? null : d;
-    }
+  str = str.toString().trim();
+
+  // dd/mm/yyyy (your format)
+  const dmy = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (dmy) {
+    return new Date(
+      parseInt(dmy[3]),
+      parseInt(dmy[2]) - 1,
+      parseInt(dmy[1])
+    );
   }
 
-  // fallback ISO / Google format
+  // fallback ISO or other formats
   const d = new Date(str);
   return isNaN(d.getTime()) ? null : d;
 }
-
 /* ================= MAIN ================= */
 async function loadData() {
 
