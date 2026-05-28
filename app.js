@@ -4,8 +4,9 @@ const RANGE = "Bills!A2:H";
 
 let chartInstance = null;
 let chartType = "bar";
+
 window.categoryTotals = {};
-window.categoryCounts = {};
+window.categoryData = {};
 
 window.addEventListener("DOMContentLoaded", loadData);
 
@@ -13,42 +14,43 @@ window.addEventListener("DOMContentLoaded", loadData);
 function categorizeExpense(subject = "") {
   const s = subject.toLowerCase();
 
-  if (s.includes("electricity") || s.includes("power") || s.includes("energy")) {
+  if (s.includes("electricity") || s.includes("power") || s.includes("energy"))
     return { name: "Electricity", icon: "⚡" };
-  }
 
-  if (s.includes("rent") || s.includes("landlord")) {
+  if (s.includes("rent") || s.includes("landlord"))
     return { name: "Rent", icon: "🏠" };
-  }
 
   if (s.includes("water")) return { name: "Water", icon: "💧" };
 
-  if (s.includes("internet") || s.includes("wifi") || s.includes("telstra") || s.includes("optus")) {
+  if (s.includes("internet") || s.includes("wifi") || s.includes("telstra") || s.includes("optus"))
     return { name: "Internet", icon: "📶" };
-  }
 
-  if (s.includes("phone") || s.includes("mobile")) {
+  if (s.includes("phone") || s.includes("mobile"))
     return { name: "Mobile", icon: "📱" };
-  }
 
   if (s.includes("gas")) return { name: "Gas", icon: "🔥" };
 
   return { name: "Other", icon: "📦" };
 }
 
-/* ================= DATE FIX ================= */
+/* ================= SAFE DATE PARSER ================= */
 function parseDate(str) {
   if (!str) return null;
 
+  // dd/mm/yyyy
   if (str.includes("/")) {
     const p = str.split("/");
-    return new Date(p[2], p[1] - 1, p[0]);
+    if (p.length === 3) {
+      return new Date(p[2], p[1] - 1, p[0]);
+    }
   }
 
-  return new Date(str);
+  // fallback ISO / Google format
+  const d = new Date(str);
+  return isNaN(d.getTime()) ? null : d;
 }
 
-/* ================= MAIN LOAD ================= */
+/* ================= MAIN ================= */
 async function loadData() {
 
   const url =
@@ -67,7 +69,6 @@ async function loadData() {
   let count = 0;
 
   const monthly = {};
-
   window.categoryTotals = {};
   window.categoryData = {};
 
@@ -79,23 +80,7 @@ async function loadData() {
 
     const subject = row[3] || "";
     const amount = parseFloat(row[4]) || 0;
-
-    /* FIXED DATE PARSER */
-    let date = null;
-
-    if (row[5]) {
-
-      const parts = row[5].split("/");
-
-      if (parts.length === 3) {
-
-        const day = parseInt(parts[0]);
-        const month = parseInt(parts[1]) - 1;
-        const year = parseInt(parts[2]);
-
-        date = new Date(year, month, day);
-      }
-    }
+    const date = parseDate(row[5]);
 
     const category = categorizeExpense(subject);
 
@@ -103,61 +88,77 @@ async function loadData() {
     count++;
 
     /* CURRENT MONTH */
-    if (
-      date &&
-      !isNaN(date.getTime()) &&
-      date.getMonth() === currentMonth &&
-      date.getFullYear() === currentYear
-    ) {
+    if (date && date.getMonth() === currentMonth && date.getFullYear() === currentYear) {
       currentMonthTotal += amount;
     }
 
     /* MONTHLY CHART */
-    if (date && !isNaN(date.getTime())) {
-
-      const key =
-        `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-
+    if (date) {
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
       monthly[key] = (monthly[key] || 0) + amount;
     }
 
     /* CATEGORY TOTALS */
-window.categoryTotals[category.name] =
-  (window.categoryTotals[category.name] || 0) + amount;
+    window.categoryTotals[category.name] =
+      (window.categoryTotals[category.name] || 0) + amount;
 
-/* CATEGORY COUNTS */
-window.categoryCounts[category.name] =
-  (window.categoryCounts[category.name] || 0) + 1;
-
-    /* CATEGORY AVERAGES */
+    /* CATEGORY DATA */
     if (!window.categoryData[category.name]) {
-      window.categoryData[category.name] = {
-        total: 0,
-        count: 0
-      };
+      window.categoryData[category.name] = { total: 0, count: 0 };
     }
 
     window.categoryData[category.name].total += amount;
-    window.categoryData[category.name].count++;
+    window.categoryData[category.name].count += 1;
   });
 
   /* CHART */
   const labels = Object.keys(monthly).sort();
   const values = labels.map(k => monthly[k]);
 
-  /* KPI VALUES */
+  /* KPI SAFE VALUES */
   animateValue("total", yearlyTotal, true);
   animateValue("monthTotal", currentMonthTotal, true);
   animateValue("count", count, false);
-  animateValue("avg", yearlyTotal / count, true);
+  animateValue("avg", count ? yearlyTotal / count : 0, true);
 
   renderChart(labels, values);
-
   renderCategories();
-
   renderCategoryAverages();
 }
 
+/* ================= CHART ================= */
+function renderChart(labels, values) {
+
+  const ctx = document.getElementById("chart");
+
+  if (chartInstance) chartInstance.destroy();
+
+  chartInstance = new Chart(ctx, {
+    type: chartType,
+    data: {
+      labels,
+      datasets: [{
+        label: "Spending",
+        data: values,
+        borderColor: "#3b82f6",
+        backgroundColor: "rgba(59,130,246,0.2)",
+        borderWidth: 2,
+        fill: chartType === "line"
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: "#94a3b8" } },
+        y: { ticks: { color: "#94a3b8" } }
+      }
+    }
+  });
+}
+
+/* ================= CATEGORIES ================= */
 function renderCategories() {
 
   const el = document.getElementById("categories");
@@ -168,14 +169,9 @@ function renderCategories() {
   Object.entries(window.categoryTotals)
     .sort((a, b) => b[1] - a[1])
     .forEach(([name, value]) => {
-
       html += `
-        <div style="
-          display:flex;
-          justify-content:space-between;
-          padding:8px 0;
-          border-bottom:1px solid #1f2937;
-        ">
+        <div style="display:flex;justify-content:space-between;
+        padding:6px 0;border-bottom:1px solid #1f2937;">
           <span>${name}</span>
           <span>$${value.toFixed(2)}</span>
         </div>
@@ -185,6 +181,7 @@ function renderCategories() {
   el.innerHTML = html;
 }
 
+/* ================= CATEGORY AVERAGES FIXED ================= */
 function renderCategoryAverages() {
 
   const el = document.getElementById("categoryAverages");
@@ -192,20 +189,15 @@ function renderCategoryAverages() {
 
   let html = "";
 
-  Object.entries(window.categoryTotals)
-    .sort((a, b) => b[1] - a[1])
-    .forEach(([name, total]) => {
+  Object.entries(window.categoryData)
+    .sort((a, b) => b[1].total - a[1].total)
+    .forEach(([name, data]) => {
 
-      const count = window.categoryCounts[name] || 1;
-      const avg = total / count;
+      const avg = data.count ? data.total / data.count : 0;
 
       html += `
-        <div style="
-          display:flex;
-          justify-content:space-between;
-          padding:8px 0;
-          border-bottom:1px solid #1f2937;
-        ">
+        <div style="display:flex;justify-content:space-between;
+        padding:6px 0;border-bottom:1px solid #1f2937;">
           <span>${name}</span>
           <span>$${avg.toFixed(2)}</span>
         </div>
@@ -214,14 +206,15 @@ function renderCategoryAverages() {
 
   el.innerHTML = html;
 }
-/* ================= KPI ANIMATION ================= */
+
+/* ================= ANIMATION ================= */
 function animateValue(id, value, money = true) {
 
   const el = document.getElementById(id);
+  if (!el) return;
 
   let start = 0;
-  const duration = 600;
-  const step = value / (duration / 16);
+  const step = value / 30;
 
   function update() {
     start += step;
@@ -237,7 +230,7 @@ function animateValue(id, value, money = true) {
   update();
 }
 
-/* ================= CHART TOGGLE ================= */
+/* ================= TOGGLE ================= */
 function toggleChart() {
   chartType = chartType === "bar" ? "line" : "bar";
   loadData();
