@@ -61,14 +61,14 @@ async function loadData() {
     return;
   }
 
-  let total = 0;
-  let count = 0;
+  let yearlyTotal = 0;
   let currentMonthTotal = 0;
+  let count = 0;
 
   const monthly = {};
 
   window.categoryTotals = {};
-  window.categoryCounts = {};
+  window.categoryData = {};
 
   const now = new Date();
   const currentMonth = now.getMonth();
@@ -78,14 +78,30 @@ async function loadData() {
 
     const subject = row[3] || "";
     const amount = parseFloat(row[4]) || 0;
-    const date = parseDate(row[5]);
+
+    /* FIXED DATE PARSER */
+    let date = null;
+
+    if (row[5]) {
+
+      const parts = row[5].split("/");
+
+      if (parts.length === 3) {
+
+        const day = parseInt(parts[0]);
+        const month = parseInt(parts[1]) - 1;
+        const year = parseInt(parts[2]);
+
+        date = new Date(year, month, day);
+      }
+    }
 
     const category = categorizeExpense(subject);
 
-    total += amount;
+    yearlyTotal += amount;
     count++;
 
-    /* ================= CURRENT MONTH ================= */
+    /* CURRENT MONTH */
     if (
       date &&
       !isNaN(date.getTime()) &&
@@ -95,7 +111,7 @@ async function loadData() {
       currentMonthTotal += amount;
     }
 
-    /* ================= MONTHLY CHART ================= */
+    /* MONTHLY CHART */
     if (date && !isNaN(date.getTime())) {
 
       const key =
@@ -104,35 +120,37 @@ async function loadData() {
       monthly[key] = (monthly[key] || 0) + amount;
     }
 
-    /* ================= CATEGORY TOTALS ================= */
+    /* CATEGORY TOTALS */
     window.categoryTotals[category.name] =
       (window.categoryTotals[category.name] || 0) + amount;
 
-    /* ================= CATEGORY COUNTS ================= */
-    window.categoryCounts[category.name] =
-      (window.categoryCounts[category.name] || 0) + 1;
+    /* CATEGORY AVERAGES */
+    if (!window.categoryData[category.name]) {
+      window.categoryData[category.name] = {
+        total: 0,
+        count: 0
+      };
+    }
+
+    window.categoryData[category.name].total += amount;
+    window.categoryData[category.name].count++;
   });
 
+  /* CHART */
   const labels = Object.keys(monthly).sort();
   const values = labels.map(k => monthly[k]);
 
-  /* ================= KPI VALUES ================= */
-
-  animateValue("total", total, true);
-
+  /* KPI VALUES */
+  animateValue("total", yearlyTotal, true);
   animateValue("monthTotal", currentMonthTotal, true);
-
   animateValue("count", count, false);
-
-  /* ================= CATEGORY AVERAGES ================= */
-
-  renderCategoryAverages();
-
-  /* ================= RENDER ================= */
+  animateValue("avg", yearlyTotal / count, true);
 
   renderChart(labels, values);
 
   renderCategories();
+
+  renderCategoryAverages();
 }
 
 function renderCategoryAverages() {
