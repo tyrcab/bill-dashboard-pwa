@@ -9,24 +9,75 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <style>
-    body { font-family: Arial; margin: 0; background:#0f172a; color:white; }
-    .card { padding:16px; margin:10px; background:#1e293b; border-radius:12px; }
-    canvas { background:white; border-radius:12px; padding:10px; }
+    body {
+      font-family: Arial;
+      margin: 0;
+      background: #0f172a;
+      color: white;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 12px;
+    }
+
+    .card {
+      padding: 16px;
+      margin: 10px 0;
+      background: #1e293b;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+
+    h2 {
+      margin: 0 0 10px 0;
+      font-size: 20px;
+    }
+
+    #stats {
+      font-size: 16px;
+      line-height: 1.6;
+    }
+
+    /* ✅ IMPORTANT FIX: chart container with height */
+    .chart-container {
+      position: relative;
+      height: 320px;
+      width: 100%;
+    }
+
+    canvas {
+      background: white;
+      border-radius: 12px;
+    }
+
+    @media (max-width: 600px) {
+      .chart-container {
+        height: 260px;
+      }
+    }
   </style>
 </head>
 
 <body>
 
-  <div class="card">
-    <h2>💰 Bill Dashboard</h2>
-    <div id="stats">Loading...</div>
+  <div class="container">
+
+    <div class="card">
+      <h2>💰 Bill Dashboard</h2>
+      <div id="stats">Loading...</div>
+    </div>
+
+    <div class="card">
+      <div class="chart-container">
+        <canvas id="chart"></canvas>
+      </div>
+    </div>
+
   </div>
 
-  <div class="card">
-    <canvas id="chart"></canvas>
-  </div>
-
-<script src="app.js"></script>
+  <script src="app.js"></script>
 
 </body>
 </html>

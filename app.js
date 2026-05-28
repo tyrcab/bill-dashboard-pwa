@@ -2,7 +2,12 @@ const SHEET_ID = "1QFPJQUy6nCZZSTGGjNiPPfw1CGA2QxMTkJPJYkNmZLk";
 const API_KEY = "AIzaSyALGhSqtVP8WYHQFh4yAw11Eix2mBSO_Xg";
 const RANGE = "Bills!A2:H";
 
-let chartInstance = null; // prevents duplicate charts
+let chartInstance = null;
+
+// ✅ IMPORTANT: wait for DOM
+window.addEventListener("DOMContentLoaded", () => {
+  loadData();
+});
 
 async function loadData() {
 
@@ -14,9 +19,10 @@ async function loadData() {
     const res = await fetch(url);
     const data = await res.json();
 
+    console.log("RAW DATA:", data);
+
     if (!data.values || !Array.isArray(data.values)) {
       document.getElementById("stats").innerText = "No data found";
-      console.log("API Response:", data);
       return;
     }
 
@@ -27,19 +33,17 @@ async function loadData() {
 
       const amount = parseFloat(row[4]) || 0;
 
-      // ✅ FIXED DD/MM/YYYY parsing (IMPORTANT)
+      // FIX: DD/MM/YYYY parsing (CRITICAL)
       let date = null;
 
       if (row[5]) {
-        const parts = row[5].split("/"); // "16/06/2026"
+        const parts = row[5].split("/");
         if (parts.length === 3) {
-          date = new Date(parts[2], parts[1] - 1, parts[0]); // YYYY, MM, DD
+          date = new Date(parts[2], parts[1] - 1, parts[0]);
         }
       }
 
-      if (!isNaN(amount)) {
-        total += amount;
-      }
+      total += amount;
 
       if (date && !isNaN(date.getTime())) {
         const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
@@ -47,23 +51,25 @@ async function loadData() {
       }
     });
 
-    // ✅ stable sorting (prevents weird chart ordering)
-    const sortedKeys = Object.keys(monthly).sort();
-    const labels = sortedKeys;
-    const values = sortedKeys.map(k => monthly[k]);
+    const keys = Object.keys(monthly).sort();
+    const labels = keys;
+    const values = keys.map(k => monthly[k]);
 
-    document.getElementById("stats").innerHTML = `
-      <p>Total Spending: <b>$${total.toFixed(2)}</b></p>
-    `;
+    document.getElementById("stats").innerHTML =
+      `<p>Total Spending: <b>$${total.toFixed(2)}</b></p>`;
 
-    // ✅ destroy previous chart (important for reloads)
-    const ctx = document.getElementById("chart");
+    // ✅ FIX: ensure canvas exists
+    const canvas = document.getElementById("chart");
 
-    if (chartInstance) {
-      chartInstance.destroy();
+    if (!canvas) {
+      console.error("Chart canvas not found!");
+      return;
     }
 
-    chartInstance = new Chart(ctx, {
+    // destroy old chart
+    if (chartInstance) chartInstance.destroy();
+
+    chartInstance = new Chart(canvas, {
       type: "bar",
       data: {
         labels,
@@ -74,18 +80,12 @@ async function loadData() {
       },
       options: {
         responsive: true,
-        plugins: {
-          legend: {
-            display: true
-          }
-        }
+        maintainAspectRatio: false
       }
     });
 
   } catch (err) {
-    console.error("Load error:", err);
+    console.error("Dashboard error:", err);
     document.getElementById("stats").innerText = "Error loading data";
   }
 }
-
-loadData();
