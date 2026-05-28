@@ -1,34 +1,47 @@
-const SHEET_CSV_URL = "YOUR_GOOGLE_SHEET_CSV_URL";
+const SHEET_ID = "1QFPJQUy6nCZZSTGGjNiPPfw1CGA2QxMTkJPJYkNmZLk";
+const API_KEY = "AIzaSyALGhSqtVP8WYHQFh4yAw11Eix2mBSO_Xg";
+const RANGE = "Bills!A2:H";
 
 async function loadData() {
-  const res = await fetch(SHEET_CSV_URL);
-  const text = await res.text();
 
-  const rows = text.split("\n").map(r => r.split(","));
+  const url =
+    `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${RANGE}?key=${API_KEY}`;
 
-  let total = 0;
-  let labels = [];
-  let values = [];
+  const res = await fetch(url);
+  const data = await res.json();
 
-  const monthly = {};
-
-  for (let i = 1; i < rows.length; i++) {
-    const amount = parseFloat(rows[i][4]);
-    const date = new Date(rows[i][5]);
-
-    if (!isNaN(amount)) total += amount;
-
-    if (!isNaN(date)) {
-      const key = `${date.getFullYear()}-${date.getMonth()+1}`;
-      monthly[key] = (monthly[key] || 0) + amount;
-    }
+  if (!data.values) {
+    document.getElementById("stats").innerText = "No data found";
+    console.log(data);
+    return;
   }
 
-  labels = Object.keys(monthly);
-  values = Object.values(monthly);
+  let total = 0;
+  const monthly = {};
+
+  data.values.forEach(row => {
+
+    const amount = parseFloat(row[4]);
+
+    // safer date parsing (prevents NaN bugs)
+    const date = new Date(row[5]);
+
+    if (!isNaN(amount)) {
+      total += amount;
+    }
+
+    if (date instanceof Date && !isNaN(date.getTime())) {
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+
+      monthly[key] = (monthly[key] || 0) + amount;
+    }
+  });
+
+  const labels = Object.keys(monthly).sort();
+  const values = labels.map(k => monthly[k]);
 
   document.getElementById("stats").innerHTML = `
-    <p>Total Spending: $${total.toFixed(2)}</p>
+    <p>Total Spending: <b>$${total.toFixed(2)}</b></p>
   `;
 
   new Chart(document.getElementById("chart"), {
