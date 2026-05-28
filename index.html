@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bill Dashboard</title>
+
+  <link rel="manifest" href="manifest.json">
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    body { font-family: Arial; margin: 0; background:#0f172a; color:white; }
+    .card { padding:16px; margin:10px; background:#1e293b; border-radius:12px; }
+    canvas { background:white; border-radius:12px; padding:10px; }
+  </style>
+</head>
+
+<body>
+
+  <div class="card">
+    <h2>💰 Bill Dashboard</h2>
+    <div id="stats">Loading...</div>
+  </div>
+
+  <div class="card">
+    <canvas id="chart"></canvas>
+  </div>
+
+<script src="app.js"></script>
+
+</body>
+</html>
