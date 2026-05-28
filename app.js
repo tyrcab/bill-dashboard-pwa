@@ -63,8 +63,16 @@ async function loadData() {
 
   let total = 0;
   let count = 0;
+  let currentMonthTotal = 0;
+
   const monthly = {};
+
   window.categoryTotals = {};
+  window.categoryCounts = {};
+
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
 
   data.values.forEach(row => {
 
@@ -77,84 +85,86 @@ async function loadData() {
     total += amount;
     count++;
 
-    /* MONTHLY */
+    /* ================= CURRENT MONTH ================= */
+    if (
+      date &&
+      !isNaN(date.getTime()) &&
+      date.getMonth() === currentMonth &&
+      date.getFullYear() === currentYear
+    ) {
+      currentMonthTotal += amount;
+    }
+
+    /* ================= MONTHLY CHART ================= */
     if (date && !isNaN(date.getTime())) {
-      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+
+      const key =
+        `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+
       monthly[key] = (monthly[key] || 0) + amount;
     }
 
-    /* CATEGORY */
+    /* ================= CATEGORY TOTALS ================= */
     window.categoryTotals[category.name] =
       (window.categoryTotals[category.name] || 0) + amount;
+
+    /* ================= CATEGORY COUNTS ================= */
+    window.categoryCounts[category.name] =
+      (window.categoryCounts[category.name] || 0) + 1;
   });
 
   const labels = Object.keys(monthly).sort();
   const values = labels.map(k => monthly[k]);
 
+  /* ================= KPI VALUES ================= */
+
   animateValue("total", total, true);
+
+  animateValue("monthTotal", currentMonthTotal, true);
+
   animateValue("count", count, false);
-  animateValue("avg", total / count, true);
+
+  /* ================= CATEGORY AVERAGES ================= */
+
+  renderCategoryAverages();
+
+  /* ================= RENDER ================= */
 
   renderChart(labels, values);
+
   renderCategories();
 }
 
-/* ================= CHART ================= */
-function renderChart(labels, values) {
+function renderCategoryAverages() {
 
-  const ctx = document.getElementById("chart");
+  const el = document.getElementById("categoryAverages");
 
-  if (chartInstance) chartInstance.destroy();
-
-  chartInstance = new Chart(ctx, {
-    type: chartType,
-    data: {
-      labels,
-      datasets: [{
-        label: "Spending",
-        data: values,
-        borderColor: "#3b82f6",
-        backgroundColor: "rgba(59,130,246,0.2)",
-        borderWidth: 2,
-        fill: chartType === "line"
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-      scales: {
-        x: { ticks: { color: "#94a3b8" } },
-        y: { ticks: { color: "#94a3b8" } }
-      }
-    }
-  });
-}
-
-/* ================= CATEGORY UI ================= */
-function renderCategories() {
-
-  const el = document.getElementById("categories");
   if (!el) return;
 
   let html = "";
 
   Object.entries(window.categoryTotals)
     .sort((a, b) => b[1] - a[1])
-    .forEach(([name, value]) => {
+    .forEach(([name, total]) => {
+
+      const avg =
+        total / window.categoryCounts[name];
 
       html += `
-        <div style="display:flex;justify-content:space-between;
-        padding:8px 0;border-bottom:1px solid #1f2937;">
+        <div style="
+          display:flex;
+          justify-content:space-between;
+          padding:8px 0;
+          border-bottom:1px solid #1f2937;
+        ">
           <span>${name}</span>
-          <span>$${value.toFixed(2)}</span>
+          <span>$${avg.toFixed(2)}</span>
         </div>
       `;
     });
 
   el.innerHTML = html;
 }
-
 /* ================= KPI ANIMATION ================= */
 function animateValue(id, value, money = true) {
 

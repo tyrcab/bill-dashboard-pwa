@@ -40,7 +40,7 @@
     /* KPI GRID */
     .grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(4, 1fr);
       gap: 12px;
       margin-top: 16px;
     }
@@ -98,7 +98,7 @@
     /* MOBILE */
     @media (max-width: 768px) {
       .grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(4, 1fr);
       }
     }
 
@@ -121,24 +121,32 @@
 
   <!-- KPI CARDS -->
   <div class="grid">
-    <div class="card">
-      <div class="kpi-label">Total Spending</div>
-      <div class="kpi-value" id="total">$0</div>
-    </div>
+  <div class="card">
+    <div class="kpi-label">Total Yearly Spending</div>
+    <div class="kpi-value" id="total">$0</div>
+  </div>
 
-    <div class="card">
-      <div class="kpi-label">Bills Count</div>
-      <div class="kpi-value" id="count">0</div>
-    </div>
+      <div class="card">
+    <div class="kpi-label">Current Month Spending</div>
+    <div class="kpi-value" id="monthTotal">$0</div>
+  </div>
 
     <div class="card">
       <div class="kpi-label">Average Bill</div>
       <div class="kpi-value" id="avg">$0</div>
     </div>
+    <div class="card">
+  <div class="kpi-label">Bills Count</div>
+  <div class="kpi-value" id="count">0</div>
+</div>
   </div>
   <div class="card">
   <div class="kpi-label">Expense Categories</div>
   <div id="categories"></div>
+</div>
+<div class="card" style="margin-top:16px;">
+  <div class="kpi-label">Average By Category</div>
+  <div id="categoryAverages"></div>
 </div>
 
   <!-- CHART -->
