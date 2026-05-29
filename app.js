@@ -49,10 +49,7 @@ async function loadData() {
   const res = await fetch(url);
   const data = await res.json();
 
-  if (!data.values || !Array.isArray(data.values)) {
-    console.log("No data returned", data);
-    return;
-  }
+  if (!data.values || !Array.isArray(data.values)) return;
 
   let yearlyTotal = 0;
   let currentMonthTotal = 0;
@@ -77,15 +74,18 @@ async function loadData() {
 
     const category = categorizeExpense(subject);
 
+    // ALWAYS include in yearly total
     yearlyTotal += amount;
     count++;
 
-    /* CURRENT MONTH */
-    if (date) {
-      if (
+    // ONLY include month logic IF date is valid
+    if (date instanceof Date && !isNaN(date.getTime())) {
+
+      const isCurrentMonth =
         date.getMonth() === currentMonth &&
-        date.getFullYear() === currentYear
-      ) {
+        date.getFullYear() === currentYear;
+
+      if (isCurrentMonth) {
         currentMonthTotal += amount;
       }
 
@@ -94,11 +94,13 @@ async function loadData() {
     }
   });
 
-  /* SORT MONTHS PROPERLY */
-  const labels = Object.keys(monthly).sort((a, b) => new Date(a + "-01") - new Date(b + "-01"));
-  const values = labels.map(k => monthly[k]);
+  // FIX: proper sorting (string sort breaks finance charts)
+  const labels = Object.keys(monthly).sort((a, b) =>
+    new Date(a + "-01") - new Date(b + "-01")
+  );
 
-  /* KPIs */
+  const values = labels.map(k => monthly[k] || 0);
+
   animateValue("total", yearlyTotal, true);
   animateValue("monthTotal", currentMonthTotal, true);
   animateValue("count", count, false);
@@ -108,7 +110,6 @@ async function loadData() {
   renderCategories();
   renderCategoryAverages();
 }
-
 /* ================= CHART ================= */
 function renderChart(labels, values) {
 
