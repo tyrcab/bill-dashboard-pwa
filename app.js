@@ -134,7 +134,7 @@ function renderChart(labels, values) {
     data: {
       labels,
       datasets: [{
-        label: "Spending",
+        label: "Amount ($)",
         data: values,
         borderColor: "#3b82f6",
         backgroundColor: "rgba(59,130,246,0.2)",
@@ -145,10 +145,26 @@ function renderChart(labels, values) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
+
+      plugins: {
+        legend: { display: false }
+      },
+
       scales: {
-        x: { ticks: { color: "#94a3b8" } },
-        y: { ticks: { color: "#94a3b8" } }
+        x: {
+          title: {
+            display: true,
+            text: "Month"
+          },
+          ticks: { color: "#94a3b8" }
+        },
+        y: {
+          title: {
+            display: true,
+            text: "Amount ($)"
+          },
+          ticks: { color: "#94a3b8" }
+        }
       }
     }
   });
