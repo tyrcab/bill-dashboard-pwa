@@ -10,7 +10,7 @@ window.categoryData = {};
 
 window.addEventListener("DOMContentLoaded", loadData);
 
-/* ================= CATEGORY ENGINE ================= */
+/* ================= CATEGORY ================= */
 function categorizeExpense(subject = "") {
   const s = subject.toLowerCase();
 
@@ -33,7 +33,7 @@ function categorizeExpense(subject = "") {
   return { name: "Other", icon: "📦" };
 }
 
-/* ================= TIMEZONE-SAFE DATE PARSER ================= */
+/* ================= FIXED AU TIMEZONE DATE PARSER ================= */
 function parseDate(input) {
   if (!input) return null;
 
@@ -42,103 +42,95 @@ function parseDate(input) {
   // dd/mm/yyyy (your sheet format)
   const dmy = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (dmy) {
-    const d = new Date(Date.UTC(dmy[3], dmy[2] - 1, dmy[1]));
-    return d;
+    return new Date(Number(dmy[3]), Number(dmy[2]) - 1, Number(dmy[1]));
   }
 
-  // fallback ISO / Google date
   const d = new Date(str);
   if (isNaN(d.getTime())) return null;
 
-  // normalise to UTC midnight (prevents timezone bugs)
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
-/* ================= MAIN DATA PIPELINE ================= */
+/* ================= MAIN ================= */
 async function loadData() {
 
-  try {
-    const url =
-      `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${RANGE}?key=${API_KEY}`;
+  const url =
+    `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${RANGE}?key=${API_KEY}`;
 
-    const res = await fetch(url);
-    const data = await res.json();
+  const res = await fetch(url);
+  const data = await res.json();
 
-    if (!data.values || !data.values.length) {
-      console.log("No data found", data);
-      return;
+  if (!data.values || !data.values.length) {
+    console.log("No data returned", data);
+    return;
+  }
+
+  let yearlyTotal = 0;
+  let currentMonthTotal = 0;
+  let count = 0;
+
+  const monthly = {};
+  window.categoryTotals = {};
+  window.categoryData = {};
+
+  // 🔥 FIX: LOCAL TIME (NOT UTC)
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+
+  data.values.forEach(row => {
+
+    const subject = row[3] || "";
+    const amount = Number(row[4]);
+
+    if (!amount || isNaN(amount)) return;
+
+    const date = parseDate(row[5]); // due date
+
+    const category = categorizeExpense(subject);
+
+    yearlyTotal += amount;
+    count++;
+
+    /* MONTH CHECK (FIXED) */
+    if (date &&
+        date.getMonth() === currentMonth &&
+        date.getFullYear() === currentYear) {
+      currentMonthTotal += amount;
     }
 
-    let yearlyTotal = 0;
-    let currentMonthTotal = 0;
-    let count = 0;
+    /* MONTHLY SERIES */
+    if (date) {
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+      monthly[key] = (monthly[key] || 0) + amount;
+    }
 
-    const monthly = {};
-    window.categoryTotals = {};
-    window.categoryData = {};
+    /* CATEGORY */
+    window.categoryTotals[category.name] =
+      (window.categoryTotals[category.name] || 0) + amount;
 
-    // current month in UTC
-    const now = new Date();
-    const currentMonth = now.getUTCMonth();
-    const currentYear = now.getUTCFullYear();
+    if (!window.categoryData[category.name]) {
+      window.categoryData[category.name] = { total: 0, count: 0 };
+    }
 
-    data.values.forEach(row => {
+    window.categoryData[category.name].total += amount;
+    window.categoryData[category.name].count++;
+  });
 
-      const subject = row[3] || "";
-      const amount = parseFloat(row[4]);
+  console.log("DEBUG MONTH TOTAL:", currentMonthTotal);
+  console.log("DEBUG MONTHLY:", monthly);
 
-      if (!amount || isNaN(amount)) return;
+  const labels = Object.keys(monthly).sort();
+  const values = labels.map(k => monthly[k]);
 
-      const date = parseDate(row[5]); // DUE DATE COLUMN
+  animateValue("total", yearlyTotal, true);
+  animateValue("monthTotal", currentMonthTotal, true);
+  animateValue("count", count, false);
+  animateValue("avg", count ? yearlyTotal / count : 0, true);
 
-      const category = categorizeExpense(subject);
-
-      yearlyTotal += amount;
-      count++;
-
-      /* CURRENT MONTH */
-      if (date &&
-          date.getUTCMonth() === currentMonth &&
-          date.getUTCFullYear() === currentYear) {
-        currentMonthTotal += amount;
-      }
-
-      /* MONTHLY SERIES */
-      if (date) {
-        const key = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
-        monthly[key] = (monthly[key] || 0) + amount;
-      }
-
-      /* CATEGORY TOTALS */
-      window.categoryTotals[category.name] =
-        (window.categoryTotals[category.name] || 0) + amount;
-
-      /* CATEGORY DATA */
-      if (!window.categoryData[category.name]) {
-        window.categoryData[category.name] = { total: 0, count: 0 };
-      }
-
-      window.categoryData[category.name].total += amount;
-      window.categoryData[category.name].count += 1;
-    });
-
-    /* SAFE CHART DATA */
-    const labels = Object.keys(monthly).sort();
-    const values = labels.map(k => monthly[k]);
-
-    /* KPI FIXED SAFE OUTPUT */
-    animateValue("total", yearlyTotal, true);
-    animateValue("monthTotal", currentMonthTotal, true);
-    animateValue("count", count, false);
-    animateValue("avg", count ? yearlyTotal / count : 0, true);
-
-    renderChart(labels, values.length ? values : [0]);
-    renderCategories();
-    renderCategoryAverages();
-
-  } catch (err) {
-    console.error("Load error:", err);
-  }
+  renderChart(labels, values.length ? values : [0]);
+  renderCategories();
+  renderCategoryAverages();
 }
 
 /* ================= CHART ================= */
@@ -223,7 +215,7 @@ function renderCategoryAverages() {
   el.innerHTML = html;
 }
 
-/* ================= KPI ANIMATION ================= */
+/* ================= ANIMATION ================= */
 function animateValue(id, value, money = true) {
 
   const el = document.getElementById(id);
