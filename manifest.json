@@ -1,15 +1,9 @@
 {
-  "name": "Bill Dashboard",
-  "short_name": "Bills",
+  "name": "Finance PWA",
+  "short_name": "Finance",
   "start_url": ".",
   "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#0f172a",
-  "icons": [
-    {
-      "src": "icon.png",
-      "sizes": "192x192",
-      "type": "image/png"
-    }
-  ]
+  "background_color": "#0b1220",
+  "theme_color": "#0b1220",
+  "icons": []
 }

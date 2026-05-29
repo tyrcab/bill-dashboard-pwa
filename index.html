@@ -1,169 +1,104 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bill Dashboard Pro</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Finance PWA</title>
 
-  <link rel="manifest" href="manifest.json">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0b1220">
 
-  <style>
-    body {
-      margin: 0;
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
-      background: #0b1220;
-      color: #e5e7eb;
-    }
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    .container {
-      max-width: 1000px;
-      margin: auto;
-      padding: 16px;
-    }
+<style>
+body {
+  margin: 0;
+  font-family: system-ui;
+  background: #0b1220;
+  color: #e5e7eb;
+}
 
-    /* HEADER */
-    .header {
-      padding: 20px 10px;
-    }
+.container {
+  max-width: 1100px;
+  margin: auto;
+  padding: 16px;
+}
 
-    .title {
-      font-size: 22px;
-      font-weight: 700;
-    }
+.header {
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
 
-    .subtitle {
-      color: #94a3b8;
-      font-size: 13px;
-      margin-top: 4px;
-    }
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
 
-    /* KPI GRID */
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 12px;
-      margin-top: 16px;
-    }
+.card {
+  background: #111827;
+  border: 1px solid #1f2937;
+  border-radius: 14px;
+  padding: 12px;
+}
 
-    .card {
-      background: linear-gradient(145deg, #111827, #0f172a);
-      border: 1px solid #1f2937;
-      border-radius: 16px;
-      padding: 14px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.25);
-    }
+.kpi {
+  font-size: 20px;
+  font-weight: 700;
+}
 
-    .kpi-label {
-      font-size: 12px;
-      color: #94a3b8;
-    }
+.small {
+  color: #94a3b8;
+  font-size: 12px;
+}
 
-    .kpi-value {
-      font-size: 20px;
-      font-weight: 700;
-      margin-top: 6px;
-    }
-
-    /* CHART */
-    .chart-card {
-      margin-top: 16px;
-      padding: 14px;
-    }
-
-    .chart-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 10px;
-    }
-
-    .btn {
-      background: #1d4ed8;
-      border: none;
-      color: white;
-      padding: 6px 10px;
-      border-radius: 8px;
-      font-size: 12px;
-      cursor: pointer;
-    }
-
-    .chart-container {
-      height: 320px;
-    }
-
-    canvas {
-      background: transparent;
-    }
-
-    /* MOBILE */
-    @media (max-width: 768px) {
-      .grid {
-        grid-template-columns: repeat(4, 1fr);
-      }
-    }
-
-    /* LOADING */
-    .loading {
-      color: #64748b;
-      font-size: 14px;
-    }
-  </style>
+canvas {
+  margin-top: 16px;
+  background: #0f172a;
+  border-radius: 12px;
+  padding: 10px;
+}
+</style>
 </head>
 
 <body>
 
 <div class="container">
 
-  <div class="header">
-    <div class="title">💰 Finance Dashboard</div>
-    <div class="subtitle">Real-time bill tracking & spending insights</div>
-  </div>
+<div class="header">💰 Finance Dashboard PWA</div>
 
-  <!-- KPI CARDS -->
-  <div class="grid">
+<div class="grid">
   <div class="card">
-    <div class="kpi-label">Total Yearly Spending</div>
-    <div class="kpi-value" id="total">$0</div>
+    <div class="small">Yearly Spending</div>
+    <div class="kpi" id="yearly">$0</div>
   </div>
 
-      <div class="card">
-    <div class="kpi-label">Current Month Spending</div>
-    <div class="kpi-value" id="monthTotal">$0</div>
+  <div class="card">
+    <div class="small">Current Month</div>
+    <div class="kpi" id="month">$0</div>
   </div>
 
-    <div class="card">
-      <div class="kpi-label">Average Bill</div>
-      <div class="kpi-value" id="avg">$0</div>
-    </div>
-    <div class="card">
-  <div class="kpi-label">Bills Count</div>
-  <div class="kpi-value" id="count">0</div>
+  <div class="card">
+    <div class="small">Bills</div>
+    <div class="kpi" id="count">0</div>
+  </div>
 </div>
-  </div>
-  <div class="card">
-  <div class="kpi-label">Expense Categories</div>
+
+<div class="card" style="margin-top:12px;">
+  <div class="small">Expense Categories</div>
   <div id="categories"></div>
 </div>
-<div class="card" style="margin-top:16px;">
-  <div class="kpi-label">Average By Category</div>
-  <div id="categoryAverages"></div>
-</div>
 
-  <!-- CHART -->
-  <div class="card chart-card">
-    <div class="chart-header">
-      <div>Monthly Spending</div>
-      <button class="btn" onclick="toggleChart()">Toggle</button>
-    </div>
-
-    <div class="chart-container">
-      <canvas id="chart"></canvas>
-    </div>
-  </div>
+<canvas id="chart"></canvas>
 
 </div>
 
 <script src="app.js"></script>
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js');
+}
+</script>
 
 </body>
 </html>
