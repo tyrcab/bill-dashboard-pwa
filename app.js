@@ -10,7 +10,7 @@ window.categoryData = {};
 
 window.addEventListener("DOMContentLoaded", loadData);
 
-/* ================= CATEGORY ================= */
+/* ================= CATEGORY ENGINE ================= */
 function categorizeExpense(subject = "") {
   const s = subject.toLowerCase();
 
@@ -33,34 +33,37 @@ function categorizeExpense(subject = "") {
   return { name: "Other", icon: "📦" };
 }
 
-/* ================= FIXED AU TIMEZONE DATE PARSER ================= */
-function parseDate(input) {
-  if (!input) return null;
+/* ================= ULTRA SAFE DATE PARSER ================= */
+function parseDate(value) {
+  if (!value) return null;
 
-  const str = input.toString().trim();
+  const str = value.toString().trim();
 
   // dd/mm/yyyy (your sheet format)
   const dmy = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (dmy) {
-    return new Date(Number(dmy[3]), Number(dmy[2]) - 1, Number(dmy[1]));
+    const d = new Date(
+      Number(dmy[3]),
+      Number(dmy[2]) - 1,
+      Number(dmy[1])
+    );
+    return isNaN(d.getTime()) ? null : d;
   }
 
+  // fallback ISO / Google date
   const d = new Date(str);
-  if (isNaN(d.getTime())) return null;
-
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  return isNaN(d.getTime()) ? null : d;
 }
 
-/* ================= MAIN ================= */
+/* ================= MAIN LOAD ================= */
 async function loadData() {
 
-  const url =
-    `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${RANGE}?key=${API_KEY}`;
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${RANGE}?key=${API_KEY}`;
 
   const res = await fetch(url);
   const data = await res.json();
 
-  if (!data.values || !data.values.length) {
+  if (!data.values || !Array.isArray(data.values)) {
     console.log("No data returned", data);
     return;
   }
@@ -73,7 +76,6 @@ async function loadData() {
   window.categoryTotals = {};
   window.categoryData = {};
 
-  // 🔥 FIX: LOCAL TIME (NOT UTC)
   const now = new Date();
   const currentMonth = now.getMonth();
   const currentYear = now.getFullYear();
@@ -81,31 +83,36 @@ async function loadData() {
   data.values.forEach(row => {
 
     const subject = row[3] || "";
-    const amount = Number(row[4]);
+    const amount = parseFloat(row[4]);
 
-    if (!amount || isNaN(amount)) return;
+    // skip invalid rows
+    if (!amount || isNaN(amount) || amount <= 0) return;
 
-    const date = parseDate(row[5]); // due date
+    const date = parseDate(row[5]);
 
     const category = categorizeExpense(subject);
 
     yearlyTotal += amount;
     count++;
 
-    /* MONTH CHECK (FIXED) */
-    if (date &&
-        date.getMonth() === currentMonth &&
-        date.getFullYear() === currentYear) {
-      currentMonthTotal += amount;
-    }
-
-    /* MONTHLY SERIES */
+    /* MONTH FILTER (SAFE) */
     if (date) {
+      const isCurrent =
+        date.getMonth() === currentMonth &&
+        date.getFullYear() === currentYear;
+
+      if (isCurrent) {
+        currentMonthTotal += amount;
+      }
+
       const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
       monthly[key] = (monthly[key] || 0) + amount;
+    } else {
+      // fallback bucket so chart never breaks
+      monthly["Unsorted"] = (monthly["Unsorted"] || 0) + amount;
     }
 
-    /* CATEGORY */
+    /* CATEGORY TOTALS */
     window.categoryTotals[category.name] =
       (window.categoryTotals[category.name] || 0) + amount;
 
@@ -117,18 +124,21 @@ async function loadData() {
     window.categoryData[category.name].count++;
   });
 
-  console.log("DEBUG MONTH TOTAL:", currentMonthTotal);
-  console.log("DEBUG MONTHLY:", monthly);
+  /* SAFE CHART OUTPUT */
+  let labels = Object.keys(monthly).sort();
+  const values = labels.map(k => monthly[k] || 0);
 
-  const labels = Object.keys(monthly).sort();
-  const values = labels.map(k => monthly[k]);
+  if (labels.length === 0) {
+    labels = ["No Data"];
+  }
 
+  /* KPI */
   animateValue("total", yearlyTotal, true);
   animateValue("monthTotal", currentMonthTotal, true);
   animateValue("count", count, false);
   animateValue("avg", count ? yearlyTotal / count : 0, true);
 
-  renderChart(labels, values.length ? values : [0]);
+  renderChart(labels, values);
   renderCategories();
   renderCategoryAverages();
 }
@@ -215,14 +225,14 @@ function renderCategoryAverages() {
   el.innerHTML = html;
 }
 
-/* ================= ANIMATION ================= */
+/* ================= KPI ANIMATION ================= */
 function animateValue(id, value, money = true) {
 
   const el = document.getElementById(id);
   if (!el) return;
 
   let start = 0;
-  const step = value / 40;
+  const step = value / 30;
 
   function update() {
     start += step;
