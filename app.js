@@ -20,8 +20,7 @@ function categorizeExpense(subject = "") {
   if (s.includes("rent") || s.includes("landlord"))
     return { name: "Rent", icon: "🏠" };
 
-  if (s.includes("water"))
-    return { name: "Water", icon: "💧" };
+  if (s.includes("water")) return { name: "Water", icon: "💧" };
 
   if (s.includes("internet") || s.includes("wifi") || s.includes("telstra") || s.includes("optus"))
     return { name: "Internet", icon: "📶" };
@@ -29,112 +28,117 @@ function categorizeExpense(subject = "") {
   if (s.includes("phone") || s.includes("mobile"))
     return { name: "Mobile", icon: "📱" };
 
-  if (s.includes("gas"))
-    return { name: "Gas", icon: "🔥" };
+  if (s.includes("gas")) return { name: "Gas", icon: "🔥" };
 
   return { name: "Other", icon: "📦" };
 }
 
-/* ================= SAFE DATE PARSER ================= */
-function parseDate(str) {
-  if (!str) return null;
+/* ================= TIMEZONE-SAFE DATE PARSER ================= */
+function parseDate(input) {
+  if (!input) return null;
 
-  str = str.toString().trim();
+  const str = input.toString().trim();
 
-  // dd/mm/yyyy (your format)
+  // dd/mm/yyyy (your sheet format)
   const dmy = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (dmy) {
-    return new Date(
-      parseInt(dmy[3]),
-      parseInt(dmy[2]) - 1,
-      parseInt(dmy[1])
-    );
+    const d = new Date(Date.UTC(dmy[3], dmy[2] - 1, dmy[1]));
+    return d;
   }
 
-  // fallback ISO or other formats
+  // fallback ISO / Google date
   const d = new Date(str);
-  return isNaN(d.getTime()) ? null : d;
+  if (isNaN(d.getTime())) return null;
+
+  // normalise to UTC midnight (prevents timezone bugs)
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
 }
-/* ================= MAIN ================= */
+
+/* ================= MAIN DATA PIPELINE ================= */
 async function loadData() {
 
-  const url =
-    `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${RANGE}?key=${API_KEY}`;
+  try {
+    const url =
+      `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${RANGE}?key=${API_KEY}`;
 
-  const res = await fetch(url);
-  const data = await res.json();
+    const res = await fetch(url);
+    const data = await res.json();
 
-  if (!data.values) {
-    console.log("No data returned", data);
-    return;
+    if (!data.values || !data.values.length) {
+      console.log("No data found", data);
+      return;
+    }
+
+    let yearlyTotal = 0;
+    let currentMonthTotal = 0;
+    let count = 0;
+
+    const monthly = {};
+    window.categoryTotals = {};
+    window.categoryData = {};
+
+    // current month in UTC
+    const now = new Date();
+    const currentMonth = now.getUTCMonth();
+    const currentYear = now.getUTCFullYear();
+
+    data.values.forEach(row => {
+
+      const subject = row[3] || "";
+      const amount = parseFloat(row[4]);
+
+      if (!amount || isNaN(amount)) return;
+
+      const date = parseDate(row[5]); // DUE DATE COLUMN
+
+      const category = categorizeExpense(subject);
+
+      yearlyTotal += amount;
+      count++;
+
+      /* CURRENT MONTH */
+      if (date &&
+          date.getUTCMonth() === currentMonth &&
+          date.getUTCFullYear() === currentYear) {
+        currentMonthTotal += amount;
+      }
+
+      /* MONTHLY SERIES */
+      if (date) {
+        const key = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+        monthly[key] = (monthly[key] || 0) + amount;
+      }
+
+      /* CATEGORY TOTALS */
+      window.categoryTotals[category.name] =
+        (window.categoryTotals[category.name] || 0) + amount;
+
+      /* CATEGORY DATA */
+      if (!window.categoryData[category.name]) {
+        window.categoryData[category.name] = { total: 0, count: 0 };
+      }
+
+      window.categoryData[category.name].total += amount;
+      window.categoryData[category.name].count += 1;
+    });
+
+    /* SAFE CHART DATA */
+    const labels = Object.keys(monthly).sort();
+    const values = labels.map(k => monthly[k]);
+
+    /* KPI FIXED SAFE OUTPUT */
+    animateValue("total", yearlyTotal, true);
+    animateValue("monthTotal", currentMonthTotal, true);
+    animateValue("count", count, false);
+    animateValue("avg", count ? yearlyTotal / count : 0, true);
+
+    renderChart(labels, values.length ? values : [0]);
+    renderCategories();
+    renderCategoryAverages();
+
+  } catch (err) {
+    console.error("Load error:", err);
   }
-
-  let yearlyTotal = 0;
-  let currentMonthTotal = 0;
-  let count = 0;
-
-  const monthly = {};
-  window.categoryTotals = {};
-  window.categoryData = {};
-
-  const now = new Date();
-  const currentMonth = now.getMonth();
-  const currentYear = now.getFullYear();
-
-  data.values.forEach(row => {
-
-    const subject = row[3] || "";
-    const amount = parseFloat(row[4]);
-
-    // skip invalid rows completely
-    if (isNaN(amount) || amount <= 0) return;
-
-    const date = parseDate(row[5]);
-
-    const category = categorizeExpense(subject);
-
-    yearlyTotal += amount;
-    count += 1;
-
-    /* CURRENT MONTH */
-    if (date && date.getMonth() === currentMonth && date.getFullYear() === currentYear) {
-      currentMonthTotal += amount;
-    }
-
-    /* MONTHLY DATA */
-    if (date) {
-      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-      monthly[key] = (monthly[key] || 0) + amount;
-    }
-
-    /* CATEGORY TOTALS */
-    window.categoryTotals[category.name] =
-      (window.categoryTotals[category.name] || 0) + amount;
-
-    /* CATEGORY DATA */
-    if (!window.categoryData[category.name]) {
-      window.categoryData[category.name] = { total: 0, count: 0 };
-    }
-
-    window.categoryData[category.name].total += amount;
-    window.categoryData[category.name].count += 1;
-  });
-
-  /* SAFE CHART DATA */
-  let labels = Object.keys(monthly).sort();
-  if (labels.length === 0) labels = ["No Data"];
-
-  const values = labels.map(k => monthly[k] || 0);
-
-  /* KPI UPDATES */
-  animateValue("total", yearlyTotal, true);
-  animateValue("monthTotal", currentMonthTotal, true);
-  animateValue("count", count, false);
-  animateValue("avg", count ? yearlyTotal / count : 0, true);
-
-  renderChart(labels, values);
-  renderCategories();
-  renderCategoryAverages();
 }
 
 /* ================= CHART ================= */
@@ -226,7 +230,7 @@ function animateValue(id, value, money = true) {
   if (!el) return;
 
   let start = 0;
-  const step = value / 30;
+  const step = value / 40;
 
   function update() {
     start += step;
