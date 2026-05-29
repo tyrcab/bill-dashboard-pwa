@@ -71,41 +71,52 @@ async function loadData() {
     if (!amount || amount <= 0) return;
 
     const date = parseDate(row[5]);
-
     const category = categorizeExpense(subject);
 
-    // ALWAYS include in yearly total
     yearlyTotal += amount;
     count++;
 
-    // ONLY include month logic IF date is valid
+    // ================= MONTH LOGIC =================
     if (date instanceof Date && !isNaN(date.getTime())) {
 
-      const isCurrentMonth =
+      if (
         date.getMonth() === currentMonth &&
-        date.getFullYear() === currentYear;
-
-      if (isCurrentMonth) {
+        date.getFullYear() === currentYear
+      ) {
         currentMonthTotal += amount;
       }
 
       const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
       monthly[key] = (monthly[key] || 0) + amount;
     }
+
+    // ================= CATEGORY TOTALS =================
+    window.categoryTotals[category.name] =
+      (window.categoryTotals[category.name] || 0) + amount;
+
+    // ================= CATEGORY AVERAGES DATA =================
+    if (!window.categoryData[category.name]) {
+      window.categoryData[category.name] = { total: 0, count: 0 };
+    }
+
+    window.categoryData[category.name].total += amount;
+    window.categoryData[category.name].count += 1;
   });
 
-  // FIX: proper sorting (string sort breaks finance charts)
-  const labels = Object.keys(monthly).sort((a, b) =>
-    new Date(a + "-01") - new Date(b + "-01")
+  // ================= CHART =================
+  const labels = Object.keys(monthly).sort(
+    (a, b) => new Date(a + "-01") - new Date(b + "-01")
   );
 
   const values = labels.map(k => monthly[k] || 0);
 
+  // ================= KPI =================
   animateValue("total", yearlyTotal, true);
   animateValue("monthTotal", currentMonthTotal, true);
   animateValue("count", count, false);
   animateValue("avg", count ? yearlyTotal / count : 0, true);
 
+  // ================= RENDER =================
   renderChart(labels, values);
   renderCategories();
   renderCategoryAverages();
