@@ -33,18 +33,28 @@ function categorizeExpense(subject = "") {
   return { name: "Other", icon: "📦" };
 }
 
-/* ================= DATE PARSER (ISO ONLY) ================= */
+/* ================= SAFE DATE PARSER ================= */
 function parseDate(value) {
   if (!value) return null;
 
-  const d = new Date(value); // yyyy-mm-dd safe
-  return isNaN(d.getTime()) ? null : d;
+  const str = value.toString().trim();
+
+  // yyyy-mm-dd (your new format)
+  const iso = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (iso) {
+    const d = new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  const fallback = new Date(str);
+  return isNaN(fallback.getTime()) ? null : fallback;
 }
 
-/* ================= MAIN LOAD ================= */
+/* ================= MAIN ================= */
 async function loadData() {
 
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${RANGE}?key=${API_KEY}`;
+  const url =
+    `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${RANGE}?key=${API_KEY}`;
 
   const res = await fetch(url);
   const data = await res.json();
@@ -56,6 +66,7 @@ async function loadData() {
   let count = 0;
 
   const monthly = {};
+
   window.categoryTotals = {};
   window.categoryData = {};
 
@@ -66,61 +77,57 @@ async function loadData() {
   data.values.forEach(row => {
 
     const subject = row[3] || "";
-    const amount = Number(row[4]);
-
-    if (!amount || amount <= 0) return;
-
+    const amount = parseFloat(row[4]);
     const date = parseDate(row[5]);
+
+    if (isNaN(amount) || amount <= 0) return;
+
     const category = categorizeExpense(subject);
 
     yearlyTotal += amount;
     count++;
 
-    // ================= MONTH LOGIC =================
-    if (date instanceof Date && !isNaN(date.getTime())) {
-
-      if (
+    // CURRENT MONTH (FIXED)
+    if (date &&
         date.getMonth() === currentMonth &&
-        date.getFullYear() === currentYear
-      ) {
-        currentMonthTotal += amount;
-      }
+        date.getFullYear() === currentYear) {
+      currentMonthTotal += amount;
+    }
 
-      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+    // MONTHLY CHART
+    if (date) {
+      const key = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}`;
       monthly[key] = (monthly[key] || 0) + amount;
     }
 
-    // ================= CATEGORY TOTALS =================
+    // CATEGORY TOTALS
     window.categoryTotals[category.name] =
       (window.categoryTotals[category.name] || 0) + amount;
 
-    // ================= CATEGORY AVERAGES DATA =================
+    // CATEGORY DATA
     if (!window.categoryData[category.name]) {
       window.categoryData[category.name] = { total: 0, count: 0 };
     }
 
     window.categoryData[category.name].total += amount;
-    window.categoryData[category.name].count += 1;
+    window.categoryData[category.name].count++;
   });
 
-  // ================= CHART =================
-  const labels = Object.keys(monthly).sort(
-    (a, b) => new Date(a + "-01") - new Date(b + "-01")
-  );
+  /* SORT MONTHS PROPERLY */
+  const labels = Object.keys(monthly).sort((a, b) => new Date(a) - new Date(b));
+  const values = labels.map(k => monthly[k]);
 
-  const values = labels.map(k => monthly[k] || 0);
-
-  // ================= KPI =================
+  /* KPI */
   animateValue("total", yearlyTotal, true);
   animateValue("monthTotal", currentMonthTotal, true);
   animateValue("count", count, false);
   animateValue("avg", count ? yearlyTotal / count : 0, true);
 
-  // ================= RENDER =================
   renderChart(labels, values);
   renderCategories();
   renderCategoryAverages();
 }
+
 /* ================= CHART ================= */
 function renderChart(labels, values) {
 
@@ -219,13 +226,11 @@ function renderCategoryAverages() {
   el.innerHTML = html;
 }
 
-/* ================= KPI ANIMATION ================= */
+/* ================= ANIMATION ================= */
 function animateValue(id, value, money = true) {
 
   const el = document.getElementById(id);
   if (!el) return;
-
-  value = Number(value || 0);
 
   let start = 0;
   const step = value / 30;
