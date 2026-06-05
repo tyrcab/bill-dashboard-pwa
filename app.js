@@ -33,25 +33,11 @@ function categorizeExpense(subject = "") {
   return { name: "Other", icon: "📦" };
 }
 
-/* ================= ULTRA SAFE DATE PARSER ================= */
+/* ================= DATE PARSER (ISO ONLY) ================= */
 function parseDate(value) {
   if (!value) return null;
 
-  const str = value.toString().trim();
-
-  // dd/mm/yyyy (your sheet format)
-  const dmy = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (dmy) {
-    const d = new Date(
-      Number(dmy[3]),
-      Number(dmy[2]) - 1,
-      Number(dmy[1])
-    );
-    return isNaN(d.getTime()) ? null : d;
-  }
-
-  // fallback ISO / Google date
-  const d = new Date(str);
+  const d = new Date(value); // yyyy-mm-dd safe
   return isNaN(d.getTime()) ? null : d;
 }
 
@@ -83,10 +69,9 @@ async function loadData() {
   data.values.forEach(row => {
 
     const subject = row[3] || "";
-    const amount = parseFloat(row[4]);
+    const amount = Number(row[4]);
 
-    // skip invalid rows
-    if (!amount || isNaN(amount) || amount <= 0) return;
+    if (!amount || amount <= 0) return;
 
     const date = parseDate(row[5]);
 
@@ -95,44 +80,25 @@ async function loadData() {
     yearlyTotal += amount;
     count++;
 
-    /* MONTH FILTER (SAFE) */
+    /* CURRENT MONTH */
     if (date) {
-      const isCurrent =
+      if (
         date.getMonth() === currentMonth &&
-        date.getFullYear() === currentYear;
-
-      if (isCurrent) {
+        date.getFullYear() === currentYear
+      ) {
         currentMonthTotal += amount;
       }
 
       const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
       monthly[key] = (monthly[key] || 0) + amount;
-    } else {
-      // fallback bucket so chart never breaks
-      monthly["Unsorted"] = (monthly["Unsorted"] || 0) + amount;
     }
-
-    /* CATEGORY TOTALS */
-    window.categoryTotals[category.name] =
-      (window.categoryTotals[category.name] || 0) + amount;
-
-    if (!window.categoryData[category.name]) {
-      window.categoryData[category.name] = { total: 0, count: 0 };
-    }
-
-    window.categoryData[category.name].total += amount;
-    window.categoryData[category.name].count++;
   });
 
-  /* SAFE CHART OUTPUT */
-  let labels = Object.keys(monthly).sort();
-  const values = labels.map(k => monthly[k] || 0);
+  /* SORT MONTHS PROPERLY */
+  const labels = Object.keys(monthly).sort((a, b) => new Date(a + "-01") - new Date(b + "-01"));
+  const values = labels.map(k => monthly[k]);
 
-  if (labels.length === 0) {
-    labels = ["No Data"];
-  }
-
-  /* KPI */
+  /* KPIs */
   animateValue("total", yearlyTotal, true);
   animateValue("monthTotal", currentMonthTotal, true);
   animateValue("count", count, false);
@@ -230,6 +196,8 @@ function animateValue(id, value, money = true) {
 
   const el = document.getElementById(id);
   if (!el) return;
+
+  value = Number(value || 0);
 
   let start = 0;
   const step = value / 30;
